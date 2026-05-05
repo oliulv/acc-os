@@ -1683,15 +1683,17 @@ export const fetchTrackerMetrics_cron = internalAction({
 
     const window = trackerRollupWindow()
 
-    // Get tracker events for these websites (last 30 UTC days, including today)
-    const events: any[] = await ctx.runQuery(internal.metrics.getTrackerEventsForWebsites, {
+    // Aggregate inside the query so the wire payload is bounded by days, not
+    // events. Returning raw events would hit Convex's 8192 array-length cap
+    // for high-traffic startups.
+    const dailyMetrics = await ctx.runQuery(internal.metrics.getTrackerDailyMetricsForWebsites, {
       websiteIds,
-      since: new Date(window.startMs).toISOString(),
+      startMs: window.startMs,
+      endMs: window.endMs,
     })
 
-    // Store aggregated metrics. The helper zero-fills the full window so a day
-    // with no events overwrites stale prior metrics instead of leaving an old
-    // leaderboard value behind.
+    // The helper zero-fills the full window so a day with no events overwrites
+    // stale prior metrics instead of leaving an old leaderboard value behind.
     const snapshots: Array<{
       startupId: typeof args.startupId
       provider: 'tracker'
@@ -1699,7 +1701,7 @@ export const fetchTrackerMetrics_cron = internalAction({
       value: number
       timestamp: string
       window: 'daily'
-    }> = buildTrackerDailyMetrics(events, window).map((metric) => ({
+    }> = dailyMetrics.map((metric) => ({
       startupId: args.startupId,
       provider: 'tracker',
       metricKey: metric.metricKey,
@@ -1728,29 +1730,49 @@ export const getTrackerWebsitesForStartup = internalQuery({
 })
 
 /**
- * Get tracker events for websites since a given date (internal).
+ * Aggregate tracker events into daily metrics for the given websites and time
+ * window. Aggregation happens inside the query so the wire payload is bounded
+ * by `(days * metric keys)` (~90 rows) instead of raw event count — Convex
+ * caps query return arrays at 8192. The `_creationTime` range on the index
+ * also bounds the DB read to events in the window so total-history rowcount
+ * cannot trigger Convex's per-query read limits.
  */
-export const getTrackerEventsForWebsites = internalQuery({
+export const getTrackerDailyMetricsForWebsites = internalQuery({
   args: {
     websiteIds: v.array(v.id('trackerWebsites')),
-    since: v.string(),
+    startMs: v.number(),
+    endMs: v.number(),
   },
   handler: async (ctx, args) => {
-    const sinceTime = new Date(args.since).getTime()
-    const allEvents = []
+    const events: Array<{
+      _creationTime: number
+      eventName?: string
+      sessionId?: string
+    }> = []
 
     for (const websiteId of args.websiteIds) {
-      const events = await ctx.db
+      const rows = await ctx.db
         .query('trackerEvents')
-        .withIndex('by_websiteId', (q) => q.eq('websiteId', websiteId))
+        .withIndex('by_websiteId', (q) =>
+          q.eq('websiteId', websiteId).gte('_creationTime', args.startMs)
+        )
         .collect()
 
-      // Filter by creation time
-      const filtered = events.filter((e) => e._creationTime >= sinceTime)
-      allEvents.push(...filtered)
+      for (const row of rows) {
+        if (row._creationTime < args.endMs) {
+          events.push({
+            _creationTime: row._creationTime,
+            eventName: row.eventName,
+            sessionId: row.sessionId,
+          })
+        }
+      }
     }
 
-    return allEvents
+    return buildTrackerDailyMetrics(events, {
+      startMs: args.startMs,
+      endMs: args.endMs,
+    })
   },
 })
 
