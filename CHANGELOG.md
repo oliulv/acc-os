@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2.0] - 2026-05-05
+
+### Fixed
+
+- Tracker metric sync no longer fails for high-traffic startups. Previously, a startup with more than ~8,000 lifetime tracker events couldn't sync because the rollup query exceeded Convex's array return limit. Daily metrics are now aggregated inside the query and the database read is bounded to the rollup window.
+
 ## [0.3.1.0] - 2026-04-28
 
 ### Fixed
