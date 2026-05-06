@@ -21,6 +21,7 @@ import {
   sumAdjustments,
 } from './lib/fundingMath'
 import { isStorageIdOnInvoice } from './lib/invoiceAccess'
+import { withResendRetry } from './lib/resendRetry'
 
 // Upload claim TTL. A founder must attach a claimed storageId to an invoice
 // (or cancel it) within this window. Longer than a typical upload + extract +
@@ -625,17 +626,20 @@ export const sendToXero = internalAction({
     const invoiceFileUrl = await ctx.storage.getUrl(invoice.storageId)
     if (!invoiceFileUrl) throw new Error('Invoice file URL not found')
 
-    // Send invoice to Xero bills
-    const { error: billError } = await resend.emails.send({
-      from: fromEmail,
-      to: xeroBillsEmail,
-      subject: `${startupName} Invoice ${invoiceNum}`,
-      text: `Invoice ${invoiceNum} from ${startupName}`,
-      attachments: [{ filename: invoice.fileName, path: invoiceFileUrl }],
-    })
-    if (billError) {
-      throw new Error(`Failed to send invoice to Xero: ${billError.message}`)
-    }
+    // Send invoice to Xero bills, with backoff on Resend rate limits.
+    // Concurrent approvals (or any 429 spike) shouldn't drop the email and
+    // leave the DB stamped 'approved' with nothing in Xero.
+    await withResendRetry(
+      () =>
+        resend.emails.send({
+          from: fromEmail,
+          to: xeroBillsEmail,
+          subject: `${startupName} Invoice ${invoiceNum}`,
+          text: `Invoice ${invoiceNum} from ${startupName}`,
+          attachments: [{ filename: invoice.fileName, path: invoiceFileUrl }],
+        }),
+      { label: `send invoice ${startupName} #${invoiceNum} to Xero` }
+    )
 
     // Collect receipt storage IDs (handle both old single and new array format)
     // For batch invoices, merge original invoice files + receipts for Xero
@@ -660,7 +664,7 @@ export const sendToXero = internalAction({
     ]
 
     // Send all receipts in a single email — Resend fetches each via URL
-    const receiptAttachments = []
+    const receiptAttachments: Array<{ filename: string; path: string }> = []
     for (let i = 0; i < receiptIds.length; i++) {
       const receiptFileUrl = await ctx.storage.getUrl(receiptIds[i] as Id<'_storage'>)
       if (!receiptFileUrl) continue
@@ -671,16 +675,17 @@ export const sendToXero = internalAction({
     }
 
     if (receiptAttachments.length > 0) {
-      const { error: receiptError } = await resend.emails.send({
-        from: fromEmail,
-        to: xeroReceiptsEmail,
-        subject: `${startupName} Receipts for Invoice ${invoiceNum}`,
-        text: `Receipts for Invoice ${invoiceNum} from ${startupName}`,
-        attachments: receiptAttachments,
-      })
-      if (receiptError) {
-        throw new Error(`Failed to send receipts to Xero: ${receiptError.message}`)
-      }
+      await withResendRetry(
+        () =>
+          resend.emails.send({
+            from: fromEmail,
+            to: xeroReceiptsEmail,
+            subject: `${startupName} Receipts for Invoice ${invoiceNum}`,
+            text: `Receipts for Invoice ${invoiceNum} from ${startupName}`,
+            attachments: receiptAttachments,
+          }),
+        { label: `send receipts ${startupName} #${invoiceNum} to Xero` }
+      )
     }
   },
 })
