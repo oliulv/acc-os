@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2.1] - 2026-05-06
+
+### Fixed
+
+- Leaderboard scores now reflect new GitHub activity within minutes instead of up to half an hour. Founders pushing commits or PRs see their score move on the next leaderboard refresh, not after the next sync window. The GitHub sync interval drops from 30 to 5 minutes; Stripe and tracker syncs are unchanged.
+
 ## [0.3.2.0] - 2026-05-05
 
 ### Fixed
