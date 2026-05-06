@@ -58,6 +58,7 @@ import type * as lib_trackerDomain from "../lib/trackerDomain.js";
 import type * as lib_trackerRollup from "../lib/trackerRollup.js";
 import type * as lib_userCleanup from "../lib/userCleanup.js";
 import type * as metrics from "../metrics.js";
+import type * as migrations_approveAllPendingInvoices from "../migrations/approveAllPendingInvoices.js";
 import type * as migrations_backfillConnectedByUserId from "../migrations/backfillConnectedByUserId.js";
 import type * as migrations_backfillIsPartnership from "../migrations/backfillIsPartnership.js";
 import type * as migrations_backfillMilestoneApprovedAt from "../migrations/backfillMilestoneApprovedAt.js";
@@ -135,6 +136,7 @@ declare const fullApi: ApiFromModules<{
   "lib/trackerRollup": typeof lib_trackerRollup;
   "lib/userCleanup": typeof lib_userCleanup;
   metrics: typeof metrics;
+  "migrations/approveAllPendingInvoices": typeof migrations_approveAllPendingInvoices;
   "migrations/backfillConnectedByUserId": typeof migrations_backfillConnectedByUserId;
   "migrations/backfillIsPartnership": typeof migrations_backfillIsPartnership;
   "migrations/backfillMilestoneApprovedAt": typeof migrations_backfillMilestoneApprovedAt;

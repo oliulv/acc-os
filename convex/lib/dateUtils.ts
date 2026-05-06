@@ -25,6 +25,26 @@ export function getMonday(date: Date): string {
 }
 
 /**
+ * Active submission week for the founder weekly-update flow.
+ *
+ * Storage uses Monday 00:00 UTC as the week key, but the founder-facing
+ * deadline is Monday 09:00 UTC of the following week. Between Mon 00:00 and
+ * Mon 09:00 UTC, calendar week and submission window disagree: `getMonday`
+ * has rolled over to the new week, but last week's submission is still
+ * within its editable window. Shifting `now` back 9 hours before computing
+ * the Monday closes the gap so the storage key flips at 09:00 UTC, in line
+ * with the deadline.
+ *
+ * Use only on the founder submit/getCurrent path. Calendar-week consumers
+ * (leaderboard, scoring, admin week pickers, streak walking) keep `getMonday`.
+ */
+export function getActiveWeekOf(now: Date): string {
+  const shifted = new Date(now)
+  shifted.setUTCHours(shifted.getUTCHours() - 9)
+  return getMonday(shifted)
+}
+
+/**
  * Generate week boundaries for a rolling window (most recent first).
  * All date math is in UTC so the boundaries are timezone-stable — DST
  * transitions in the host runtime will not shift `start`/`end` by an hour.

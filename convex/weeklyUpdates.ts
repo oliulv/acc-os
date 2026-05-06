@@ -9,7 +9,7 @@ import {
   requireStartupAccess,
   getFounderStartupIds,
 } from './auth'
-import { getMonday } from './lib/dateUtils'
+import { getActiveWeekOf } from './lib/dateUtils'
 import { computeStreak } from './lib/streak'
 
 /**
@@ -33,7 +33,10 @@ export const submit = mutation({
     const startupId = startupIds[0]
 
     const now = new Date()
-    const weekOf = getMonday(now)
+    // Active submission week: rolls at Mon 09:00 UTC, matching the deadline.
+    // Using `getMonday(now)` here would roll at Mon 00:00 UTC and lock founders
+    // out of last week's still-editable submission for 9 hours every Monday.
+    const weekOf = getActiveWeekOf(now)
 
     // Check deadline: Monday 9am UTC of next week. All math in UTC so the
     // result is independent of the runtime's local timezone.
@@ -154,7 +157,7 @@ export const getCurrent = query({
     const startupIds = await getFounderStartupIds(ctx, user._id)
     if (startupIds.length === 0) return null
 
-    const weekOf = getMonday(new Date())
+    const weekOf = getActiveWeekOf(new Date())
 
     return await ctx.db
       .query('weeklyUpdates')
