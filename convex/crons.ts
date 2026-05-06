@@ -8,8 +8,8 @@ const crons = cronJobs()
 // Sync Stripe metrics every 30 minutes
 crons.interval('sync-stripe', { minutes: 30 }, internal.metrics.syncAllStripeMetrics)
 
-// Sync GitHub metrics every 30 minutes
-crons.interval('sync-github', { minutes: 30 }, internal.metrics.syncAllGithubMetrics)
+// Sync GitHub metrics every 5 minutes
+crons.interval('sync-github', { minutes: 5 }, internal.metrics.syncAllGithubMetrics)
 
 // Sync tracker metrics every 30 minutes
 crons.interval('sync-tracker', { minutes: 30 }, internal.metrics.syncAllTrackerMetrics)
