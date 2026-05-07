@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3.0] - 2026-05-07
+
+### Changed
+
+- Leaderboard scoring is now growth-only. A flat or declining week earns 0 points instead of dragging the score negative, so a single bad week (or a one-time traffic spike that fades) can no longer erase points the startup earned through actual growth. Time still erodes points via temporal decay. Affects MRR and Traffic categories. Rankings will shift on the first refresh after deploy.
+
+### Fixed
+
+- Analytics page session and pageview cards now show the rolling last-7-day total with a true "vs prior 7 days" comparison. Previously the card displayed today's single-day value with a misleading "+X% vs last week" growth that compared today against the same single day a week ago, which made noisy daily values look like meaningful weekly trends. Cards now require 14 days of data before showing a growth indicator, so a newly-connected tracker no longer reads as inflated growth.
+- Admin leaderboard breakdown now explains why a category scores 0. Three states: "no data in the last 28 days," "tracked but no growth in the last 4 weeks," and "growth is negative and the score floors at 0." Previously a missing bar gave no signal whether the integration was disconnected, flat, or declining.
+
 ## [0.3.2.1] - 2026-05-06
 
 ### Fixed
