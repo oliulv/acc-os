@@ -11,6 +11,9 @@
  *   Updates 15%  — Weekly update × streak multiplier, 4-week decayed sum
  *
  * Policy:
+ *   - Growth-only: every week of positive WoW growth earns points; declines
+ *     earn 0, not negative. A single bad week can't erase points the startup
+ *     earned through growth. Time still erodes points via temporal decay.
  *   - Absolute weights — a startup with only 1 active category caps at
  *     that category's weight × 100 (breadth matters, no re-weighting).
  *   - No participation floor. Zero raw → zero normalized → zero weighted.

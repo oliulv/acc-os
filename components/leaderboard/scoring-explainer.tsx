@@ -101,6 +101,11 @@ export function ScoringExplainerContent() {
             invoices, consulting revenue, usage-based billing, and anything outside Stripe
             subscriptions are not tracked on the leaderboard.
           </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            <strong>Growth-only.</strong> Every week of positive growth earns points. A flat or
+            declining week earns 0 — never negative. A bad week can&apos;t erase points an earlier
+            growth week earned. Time still erodes them via decay.
+          </p>
         </div>
 
         {/* Scoring mechanics */}
