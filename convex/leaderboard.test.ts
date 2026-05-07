@@ -172,6 +172,60 @@ describe('assembleCategoryRaw', () => {
     expect(result.perCatRaw.traffic).toBe(0)
   })
 
+  it('14. growth-only: declining traffic week earns 0 points, not negative', () => {
+    // Casero-style scenario: huge spike 3 weeks ago, traffic returned to
+    // baseline. Old behavior summed negative growth, dragging trafficRaw
+    // negative for ~4 weeks. New behavior: declines earn 0, only positive
+    // weeks contribute. The +22% wk0 growth must produce strictly positive raw.
+    const weeks = buildWeeks(ROLLING_WEEKS + 1)
+    // Real-shape input: 7 daily rows per week. Catches week-bucketing bugs
+    // a single per-week aggregate would miss.
+    const dailyRows = (weekIdx: number, total: number) => {
+      const perDay = total / 7
+      return Array.from({ length: 7 }, (_, day) =>
+        sessionEvent(
+          new Date(weeks[weekIdx].start.getTime() + day * 86400_000).toISOString(),
+          perDay
+        )
+      )
+    }
+    // wk0=93, wk1=76, wk2=105, wk3=1635, wk4=795 (matches Casero prod data)
+    const raw = emptyRaw({
+      sessionMetrics: [
+        ...dailyRows(0, 93),
+        ...dailyRows(1, 76),
+        ...dailyRows(2, 105),
+        ...dailyRows(3, 1635),
+        ...dailyRows(4, 795),
+      ] as any,
+    })
+    const result = assembleCategoryRaw(raw, weeks, NOW)
+    expect(result.perCatActive.traffic).toBe(true)
+    // Only growth weeks contribute. wk0 vs wk1 = +22.4% (×1.0).
+    // wk3 vs wk4 = +105.7% (×decay). Negative weeks earn 0.
+    // Pin the exact value so a future change to the model can't silently
+    // shift this without updating the expectation.
+    expect(result.perCatRaw.traffic).toBeCloseTo(78.4, 0)
+  })
+
+  it('15. growth-only: revenue decline does not drag the score below zero', () => {
+    const weeks = buildWeeks(ROLLING_WEEKS + 1)
+    const ts = (i: number) => new Date(weeks[i].start.getTime() + 86400_000).toISOString()
+    // MRR halves every week — every comparison is negative.
+    const raw = emptyRaw({
+      mrrMetrics: [
+        mrrSnapshot(ts(0), 100),
+        mrrSnapshot(ts(1), 200),
+        mrrSnapshot(ts(2), 400),
+        mrrSnapshot(ts(3), 800),
+        mrrSnapshot(ts(4), 1600),
+      ] as any,
+    })
+    const result = assembleCategoryRaw(raw, weeks, NOW)
+    expect(result.perCatActive.revenue).toBe(true)
+    expect(result.perCatRaw.revenue).toBe(0)
+  })
+
   it('13. updates: submitted update only outside window → inactive, raw = 0', () => {
     const weeks = buildWeeks(ROLLING_WEEKS + 1)
     // Build weeks extends back 5 weeks; add a 6-weeks-ago weekOf that

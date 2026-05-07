@@ -31,10 +31,10 @@ export interface ScoreBreakdown {
   rank: number | null // null = unranked
   totalScore: number
   categories: {
-    revenue: { raw: number; normalized: number; weighted: number }
-    traffic: { raw: number; normalized: number; weighted: number }
-    github: { raw: number; normalized: number; weighted: number }
-    updates: { raw: number; normalized: number; weighted: number }
+    revenue: { raw: number; normalized: number; weighted: number; active: boolean }
+    traffic: { raw: number; normalized: number; weighted: number; active: boolean }
+    github: { raw: number; normalized: number; weighted: number; active: boolean }
+    updates: { raw: number; normalized: number; weighted: number; active: boolean }
   }
   activeCategories: number
   qualified: boolean
@@ -181,7 +181,9 @@ export function assembleCategoryRaw(
       : 0
     if (thisMrr > 0 && week.end.getTime() > windowCutoff) revenueActiveSnapshot = true
     const growth = computeGrowthRate(thisMrr, prevMrr)
-    if (growth !== null) revenueRaw += growth * temporalDecay(i)
+    // Growth-only model: positive growth earns decaying points, declines earn 0.
+    // A bad week shouldn't subtract from the score it took growth weeks to earn.
+    if (growth !== null && growth > 0) revenueRaw += growth * temporalDecay(i)
   }
 
   // ── Traffic (session growth, decayed sum) ─────────────────────────
@@ -206,7 +208,8 @@ export function assembleCategoryRaw(
       : 0
     if (thisSessions > 0 && week.end.getTime() > windowCutoff) trafficActive = true
     const growth = computeGrowthRate(thisSessions, prevSessions)
-    if (growth !== null) trafficRaw += growth * temporalDecay(i)
+    // Growth-only model: same as revenue — declines earn 0, not negative.
+    if (growth !== null && growth > 0) trafficRaw += growth * temporalDecay(i)
   }
 
   // ── GitHub (velocity score; has internal 28-day decay) ────────────
@@ -444,10 +447,22 @@ async function computeCohortLeaderboard(
       rank,
       totalScore: Math.round(current.totalScore * 100) / 100,
       categories: {
-        revenue: current.categories.revenue,
-        traffic: current.categories.traffic,
-        github: current.categories.github,
-        updates: current.categories.updates,
+        revenue: {
+          ...current.categories.revenue,
+          active: entry.currentAssembly.perCatActive.revenue,
+        },
+        traffic: {
+          ...current.categories.traffic,
+          active: entry.currentAssembly.perCatActive.traffic,
+        },
+        github: {
+          ...current.categories.github,
+          active: entry.currentAssembly.perCatActive.github,
+        },
+        updates: {
+          ...current.categories.updates,
+          active: entry.currentAssembly.perCatActive.updates,
+        },
       },
       activeCategories: current.activeCategories,
       qualified: current.qualified,
