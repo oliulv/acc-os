@@ -101,6 +101,23 @@ function IntegrationDots({
   )
 }
 
+function explainZeroScore(
+  key: string,
+  cat: { raw: number; normalized: number; weighted: number; active: boolean }
+): string {
+  const trackingNoun: Record<string, string> = {
+    revenue: 'MRR',
+    traffic: 'sessions',
+    github: 'commits, PRs, or issues',
+    updates: 'a weekly update',
+  }
+  const noun = trackingNoun[key] ?? 'data'
+  if (!cat.active) {
+    return `No ${noun} in the last 28 days, so this category isn't scored yet.`
+  }
+  return 'Tracked, but no week-over-week growth in the last 4 weeks. Growth weeks earn points; flat or down weeks earn 0.'
+}
+
 function ScoreBar({ value, maxValue, color }: { value: number; maxValue: number; color: string }) {
   const width = maxValue > 0 ? Math.min((value / maxValue) * 100, 100) : 0
   return (
@@ -243,6 +260,11 @@ function ExpandableRow({
                     Raw: {cat.raw.toFixed(1)} | Norm: {cat.normalized.toFixed(1)} | Score:{' '}
                     {cat.weighted.toFixed(2)}
                   </div>
+                  {cat.weighted < 0.005 && (
+                    <div className="text-[11px] text-muted-foreground italic">
+                      {explainZeroScore(key, cat)}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
