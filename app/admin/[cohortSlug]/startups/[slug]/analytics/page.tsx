@@ -51,6 +51,25 @@ function computeGrowth(data: Array<{ value: number }> | undefined | null): numbe
   return ((recent - previous) / previous) * 100
 }
 
+function sumLastNDays(data: Array<{ value: number }> | undefined | null, n: number): number {
+  if (!data || data.length === 0) return 0
+  return data.slice(-n).reduce((sum, d) => sum + d.value, 0)
+}
+
+// Rolling 7-day sum vs prior 7-day sum. Right metric for daily counts
+// (sessions, pageviews) where comparing two single days is noisy.
+// Returns undefined when data has fewer than 14 days — the KpiCard then
+// hides the growth indicator instead of showing a misleading "+0.0%".
+function computeRolling7dGrowth(
+  data: Array<{ value: number }> | undefined | null
+): number | undefined {
+  if (!data || data.length < 14) return undefined
+  const last7 = data.slice(-7).reduce((sum, d) => sum + d.value, 0)
+  const prior7 = data.slice(-14, -7).reduce((sum, d) => sum + d.value, 0)
+  if (prior7 === 0) return last7 > 0 ? 100 : 0
+  return ((last7 - prior7) / prior7) * 100
+}
+
 function toSparkline(data: Array<{ value: number }> | undefined | null): Array<{ value: number }> {
   if (!data) return []
   return data.slice(-14).map((d) => ({ value: d.value }))
@@ -253,7 +272,8 @@ export default function AdminStartupAnalyticsPage() {
   const hasAny = hasStripe || hasTracker || hasGithub || hasSocial
 
   const latestMrr = mrr?.length ? mrr[mrr.length - 1].value : 0
-  const latestSessions = sessions?.length ? sessions[sessions.length - 1].value : 0
+  const sessionsLast7 = sumLastNDays(sessions, 7)
+  const pageviewsLast7 = sumLastNDays(pageviews, 7)
   const latestVelocity = velocityTimeSeries?.length
     ? velocityTimeSeries[velocityTimeSeries.length - 1].value
     : 0
@@ -388,8 +408,10 @@ export default function AdminStartupAnalyticsPage() {
                 {hasTracker && (
                   <KpiCard
                     title="Sessions"
-                    value={latestSessions.toLocaleString()}
-                    change={computeGrowth(sessions)}
+                    subtitle="last 7 days"
+                    value={sessionsLast7.toLocaleString()}
+                    change={computeRolling7dGrowth(sessions)}
+                    changeLabel="vs prior 7 days"
                     sparklineData={toSparkline(sessions)}
                     color="hsl(var(--chart-2))"
                   />
@@ -597,19 +619,19 @@ export default function AdminStartupAnalyticsPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <KpiCard
                       title="Sessions"
-                      value={latestSessions.toLocaleString()}
-                      change={computeGrowth(sessions)}
+                      subtitle="last 7 days"
+                      value={sessionsLast7.toLocaleString()}
+                      change={computeRolling7dGrowth(sessions)}
+                      changeLabel="vs prior 7 days"
                       sparklineData={toSparkline(sessions)}
                       color="hsl(var(--chart-2))"
                     />
                     <KpiCard
                       title="Pageviews"
-                      value={
-                        pageviews?.length
-                          ? pageviews[pageviews.length - 1].value.toLocaleString()
-                          : '0'
-                      }
-                      change={computeGrowth(pageviews)}
+                      subtitle="last 7 days"
+                      value={pageviewsLast7.toLocaleString()}
+                      change={computeRolling7dGrowth(pageviews)}
+                      changeLabel="vs prior 7 days"
                       sparklineData={toSparkline(pageviews)}
                       color="hsl(var(--chart-3))"
                     />
