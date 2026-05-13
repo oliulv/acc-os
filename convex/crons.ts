@@ -3,16 +3,23 @@ import { internal } from './_generated/api'
 
 const crons = cronJobs()
 
+// EU-region deployments are billed fully on-demand with a 30% surcharge, so
+// dev syncs against cloned prod data were dominating the bill. On dev we run
+// each sync once a day as a smoke test; manual invocation covers anything else.
+const isProd =
+  process.env.CONVEX_CLOUD_URL === 'https://hallowed-chameleon-369.eu-west-1.convex.cloud'
+
 // ── Data sync crons (separate per source for failure isolation) ────────
 
-// Sync Stripe metrics every 30 minutes
-crons.interval('sync-stripe', { minutes: 30 }, internal.metrics.syncAllStripeMetrics)
-
-// Sync GitHub metrics every 5 minutes
-crons.interval('sync-github', { minutes: 5 }, internal.metrics.syncAllGithubMetrics)
-
-// Sync tracker metrics every 30 minutes
-crons.interval('sync-tracker', { minutes: 30 }, internal.metrics.syncAllTrackerMetrics)
+if (isProd) {
+  crons.interval('sync-stripe', { minutes: 30 }, internal.metrics.syncAllStripeMetrics)
+  crons.interval('sync-github', { minutes: 5 }, internal.metrics.syncAllGithubMetrics)
+  crons.interval('sync-tracker', { minutes: 30 }, internal.metrics.syncAllTrackerMetrics)
+} else {
+  crons.cron('sync-stripe', '0 3 * * *', internal.metrics.syncAllStripeMetrics)
+  crons.cron('sync-github', '5 3 * * *', internal.metrics.syncAllGithubMetrics)
+  crons.cron('sync-tracker', '10 3 * * *', internal.metrics.syncAllTrackerMetrics)
+}
 
 // ── Scheduled tasks ───────────────────────────────────────────────────
 
