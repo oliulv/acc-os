@@ -310,15 +310,27 @@ export default function StartupDetailPage() {
       : 0
   const topUpPool = fundingSummary?.topUpPool ?? 0
   const adjustmentIsTopUp = adjustmentMode === 'top_up'
+  // Deduction model mirrors computeStartupFunding (convex/lib/fundingMath.ts): a
+  // deduction lowers the baseline ceiling, so cash already unlocked is untouched
+  // unless the reduced ceiling drops below what milestones have unlocked. `baseline`
+  // is the raw cohort base; `deductions` already reflects prior deductions, so the new
+  // amount stacks on top of them.
+  const remainingBaseline = Math.max(0, baseline - deductions)
+  const deductedBaseline = Math.max(0, baseline - deductions - normalizedAdjustmentAmount)
+  const deductedUnlocked = Math.min(unlocked, deductedBaseline)
+  const deductedClaimable = Math.max(0, deductedUnlocked + topUp)
   const previewAvailable = adjustmentIsTopUp
     ? available + normalizedAdjustmentAmount
-    : Math.max(0, available - normalizedAdjustmentAmount)
+    : Math.max(0, deductedClaimable - committed - deployed)
   const previewEntitlement = adjustmentIsTopUp
     ? entitlement + normalizedAdjustmentAmount
-    : Math.max(0, entitlement - normalizedAdjustmentAmount)
+    : Math.max(0, deductedBaseline + topUp)
   const previewPool = adjustmentIsTopUp
     ? topUpPool - normalizedAdjustmentAmount
     : topUpPool + normalizedAdjustmentAmount
+  // A deduction reaching below already-unlocked funding claws back cash the startup
+  // could already spend, not just future headroom — worth flagging to the admin.
+  const deductionClawsBackCash = !adjustmentIsTopUp && previewAvailable < available
   const adjustmentError =
     normalizedAdjustmentAmount <= 0
       ? 'Enter an amount greater than zero'
@@ -326,8 +338,8 @@ export default function StartupDetailPage() {
         ? 'Add a founder-visible note'
         : adjustmentIsTopUp && normalizedAdjustmentAmount > topUpPool
           ? `Top-up exceeds the remaining pool of ${formatCurrency(topUpPool)}`
-          : !adjustmentIsTopUp && normalizedAdjustmentAmount > available
-            ? `Deduction exceeds available funding of ${formatCurrency(available)}`
+          : !adjustmentIsTopUp && normalizedAdjustmentAmount > remainingBaseline
+            ? `Deduction exceeds the startup's remaining baseline of ${formatCurrency(remainingBaseline)}`
             : null
 
   async function handleFundingAdjustment() {
@@ -803,9 +815,10 @@ export default function StartupDetailPage() {
                   </span>
                 </div>
               </div>
-              {!adjustmentIsTopUp && normalizedAdjustmentAmount > available * 0.8 && (
+              {deductionClawsBackCash && (
                 <p className="text-xs text-amber-700">
-                  This deduction uses most of the startup&apos;s current available balance.
+                  This deduction cuts below funding the startup has already unlocked, reducing the
+                  cash they can currently spend.
                 </p>
               )}
               {adjustmentNote.trim().length > 0 && (
