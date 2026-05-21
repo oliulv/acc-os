@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3.2] - 2026-05-21
+
+### Fixed
+
+- Admins can now deduct funding from a startup's baseline even when little spendable cash is available. A deduction now lowers the baseline ceiling (how much the startup can unlock from milestones going forward) instead of being blocked by the current available balance. Before, a £500 deduction was rejected with "Deduction exceeds available funding" whenever available cash was lower than the amount, making it impossible to dock a startup's baseline for missed workshops. Cash the startup has already unlocked stays untouched unless the reduced ceiling falls below it. Deductions are correctly capped at the remaining baseline so they can no longer over-deduct into top-up funding or inflate the cohort top-up pool.
+
 ## [0.3.3.1] - 2026-05-21
 
 ### Fixed

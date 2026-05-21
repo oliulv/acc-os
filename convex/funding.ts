@@ -10,7 +10,7 @@ import {
   requireSuperAdmin,
 } from './auth'
 import {
-  canDeductAvailable,
+  canDeductFromBaseline,
   computeInvoiceFundingTotals,
   computeStartupFunding,
   computeTopUpPool,
@@ -578,9 +578,10 @@ export const deductAvailableFunding = mutation({
     const adjustments = await getStartupAdjustments(ctx, startup._id)
     const summary = await computeStartupSummary(ctx, startup, cohort, adjustments)
 
-    if (!canDeductAvailable(summary as StartupFundingSummary, args.amount)) {
+    if (!canDeductFromBaseline(summary as StartupFundingSummary, args.amount)) {
+      const remainingBaseline = Math.max(0, summary.baseline - summary.deductions)
       throw new ConvexError(
-        `Deduction exceeds available funding. Current available: £${summary.available.toFixed(2)}.`
+        `Deduction exceeds the startup's remaining baseline. Current baseline headroom: £${remainingBaseline.toFixed(2)}.`
       )
     }
 
