@@ -71,9 +71,13 @@ export function computeStartupFunding(input: StartupFundingInput): StartupFundin
   const committed = positive(input.committedInvoices)
   const deployed = positive(input.deployedInvoices)
 
-  const unlocked = Math.min(approvedMilestones, baseline)
-  const claimable = Math.max(0, unlocked + topUp - deductions)
-  const entitlement = Math.max(0, baseline + topUp - deductions)
+  // A deduction lowers the baseline ceiling (how much the startup can unlock from
+  // milestones), not the cash they have already unlocked. Cash only shrinks when the
+  // reduced ceiling drops below what milestones have already unlocked.
+  const effectiveBaseline = Math.max(0, baseline - deductions)
+  const unlocked = Math.min(approvedMilestones, effectiveBaseline)
+  const claimable = Math.max(0, unlocked + topUp)
+  const entitlement = Math.max(0, effectiveBaseline + topUp)
   const available = Math.max(0, claimable - committed - deployed)
 
   return {
@@ -103,10 +107,16 @@ export function computeTopUpPool(input: {
   return roundCurrency(totalAllocation - baselineReserve - topUpsAllocated + deductionsReturned)
 }
 
-export function canDeductAvailable(
-  summary: Pick<StartupFundingSummary, 'available'>,
+// A deduction can only reduce the baseline ceiling, so it is capped at the baseline
+// headroom still remaining after prior deductions, NOT the entitlement (which includes
+// top-ups). Capping at entitlement would let a deduction exceed the baseline it can
+// actually reduce, recording a deduction larger than the freed reserve and inflating
+// the cohort top-up pool when that reserve is returned.
+export function canDeductFromBaseline(
+  summary: Pick<StartupFundingSummary, 'baseline' | 'deductions'>,
   amount: number
 ) {
-  const normalized = positive(amount)
-  return normalized > 0 && normalized <= summary.available
+  const normalized = roundCurrency(positive(amount))
+  const remainingBaseline = Math.max(0, positive(summary.baseline) - positive(summary.deductions))
+  return normalized > 0 && normalized <= remainingBaseline
 }
