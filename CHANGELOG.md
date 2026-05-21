@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3.1] - 2026-05-21
+
+### Fixed
+
+- Dialogs now scroll when their content is taller than the screen. Before this, a tall modal pushed its action buttons below the bottom edge of the window with no way to scroll, so the buttons were unreachable. This bit the funding adjustment modal hardest: deducting funding with a long founder-visible note made the "Confirm adjustment" button impossible to click. Every dialog now caps at the viewport height and scrolls internally.
+
 ## [0.3.3.0] - 2026-05-07
 
 ### Changed
