@@ -84,6 +84,16 @@
 
 **Depends on:** Nothing strictly. Could ship anytime.
 
+## Investigate Failing Clerk user.deleted Webhook
+
+**What:** `convex/http.ts:213` (`POST /clerk/webhook`) has been returning 500 for every Clerk delivery, going back at least a month (visible in Clerk dashboard → Webhooks → Endpoints → Message Attempts: all `user.deleted` events marked Failed). Root cause: the handler reads `process.env.CLERK_WEBHOOK_SECRET` at `convex/http.ts:219` and that env var is not set on Convex prod (verified via `npx convex env list`). Without the Svix signing secret the handler short-circuits to `return new Response('Server misconfigured', { status: 500 })` before any deletion happens.
+
+**Why:** Data hygiene and GDPR posture. Users deleted from Clerk still have their `users` row + every cascade target (startup memberships, founder profiles, weekly updates, perk claims, notification preferences, etc) sitting in Convex. If anyone has been deleted in response to a deletion request, the deletion is currently half-done — Clerk forgot them, Convex didn't.
+
+**Context:** Two-step fix. (1) Get the signing secret from Clerk dashboard → Webhooks → the endpoint pointing at `sleek-jellyfish-93.convex.site/clerk/webhook` → "Signing Secret" (starts with `whsec_`). Set on Convex prod: `CONVEX_DEPLOY_KEY=<us-prod> npx convex env set CLERK_WEBHOOK_SECRET whsec_...`. Verify by triggering a fresh Clerk user deletion — the next delivery in the Webhooks dashboard should turn green. (2) For the historical backlog, Clerk's UI has a "Replay" button per failed message. Replaying after the env var is set will run `cascadeDeleteUserData` for each deleted user, cleaning up the orphans. The handler code itself (signature verify + `internal.http.deleteUserByClerkId` on `user.deleted`) is correct as written — only the env var is missing.
+
+**Depends on:** Nothing.
+
 ## Completed
 
 ### Tracker Anti-Gaming (IP + Session Verification)
