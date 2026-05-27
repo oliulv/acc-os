@@ -40,6 +40,15 @@ import { toast } from 'sonner'
 import { announcementSchema, type AnnouncementFormData } from '@/lib/schemas'
 import type { Id } from '@/convex/_generated/dataModel'
 
+type AnnouncementRow = {
+  _id: Id<'announcements'>
+  title: string
+  body: string
+  senderName: string
+  recipientCount: number
+  sentAt: string
+}
+
 export function AnnouncementsTab({ cohortSlug }: { cohortSlug: string }) {
   const cohort = useQuery(api.cohorts.getBySlug, { slug: cohortSlug })
   const announcements = useQuery(
@@ -48,10 +57,13 @@ export function AnnouncementsTab({ cohortSlug }: { cohortSlug: string }) {
   )
   const canSend = useQuery(api.announcements.canSend, cohort ? { cohortId: cohort._id } : 'skip')
   const sendAnnouncement = useMutation(api.announcements.send)
+  const updateAnnouncement = useMutation(api.announcements.update)
 
-  const [showCompose, setShowCompose] = useState(false)
+  const [composeMode, setComposeMode] = useState<'create' | 'edit' | null>(null)
+  const [editingId, setEditingId] = useState<Id<'announcements'> | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [pendingData, setPendingData] = useState<AnnouncementFormData | null>(null)
 
   const form = useForm<AnnouncementFormData>({
@@ -59,7 +71,43 @@ export function AnnouncementsTab({ cohortSlug }: { cohortSlug: string }) {
     defaultValues: { title: '', body: '' },
   })
 
-  const handleSubmit = (data: AnnouncementFormData) => {
+  const openCreate = () => {
+    form.reset({ title: '', body: '' })
+    setEditingId(null)
+    setComposeMode('create')
+  }
+
+  const openEdit = (row: AnnouncementRow) => {
+    form.reset({ title: row.title, body: row.body })
+    setEditingId(row._id)
+    setComposeMode('edit')
+  }
+
+  const closeCompose = () => {
+    setComposeMode(null)
+    setEditingId(null)
+    form.reset({ title: '', body: '' })
+  }
+
+  const handleSubmit = async (data: AnnouncementFormData) => {
+    if (composeMode === 'edit' && editingId) {
+      setIsSaving(true)
+      try {
+        await updateAnnouncement({
+          announcementId: editingId,
+          title: data.title,
+          body: data.body,
+        })
+        toast.success('Announcement updated')
+        closeCompose()
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update announcement')
+      } finally {
+        setIsSaving(false)
+      }
+      return
+    }
+
     setPendingData(data)
     setShowConfirm(true)
   }
@@ -77,8 +125,7 @@ export function AnnouncementsTab({ cohortSlug }: { cohortSlug: string }) {
       })
       toast.success('Announcement sent to all founders')
       setShowConfirm(false)
-      setShowCompose(false)
-      form.reset()
+      closeCompose()
       setPendingData(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send announcement')
@@ -101,21 +148,29 @@ export function AnnouncementsTab({ cohortSlug }: { cohortSlug: string }) {
           </p>
         </div>
         {canSend && (
-          <Button onClick={() => setShowCompose(true)}>
+          <Button onClick={openCreate}>
             <Megaphone className="mr-2 h-4 w-4" />
             New Announcement
           </Button>
         )}
       </div>
 
-      {/* Compose Dialog */}
-      <Dialog open={showCompose} onOpenChange={setShowCompose}>
+      {/* Compose / Edit Dialog */}
+      <Dialog
+        open={composeMode !== null}
+        onOpenChange={(open) => {
+          if (!open) closeCompose()
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>New Announcement</DialogTitle>
+            <DialogTitle>
+              {composeMode === 'edit' ? 'Edit Announcement' : 'New Announcement'}
+            </DialogTitle>
             <DialogDescription>
-              This will be sent to all founders in {cohort.label} via SMS and shown in their
-              dashboard.
+              {composeMode === 'edit'
+                ? 'Update the title or message. Founders see the latest version when they open the announcement — no SMS is resent.'
+                : `This will be sent to all founders in ${cohort.label} via SMS and shown in their dashboard.`}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -154,12 +209,24 @@ export function AnnouncementsTab({ cohortSlug }: { cohortSlug: string }) {
                 )}
               />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setShowCompose(false)}>
+                <Button type="button" variant="outline" onClick={closeCompose}>
                   Cancel
                 </Button>
-                <Button type="submit">
-                  <Send className="mr-2 h-4 w-4" />
-                  Review &amp; Send
+                <Button
+                  type="submit"
+                  disabled={isSaving || (composeMode === 'edit' && !form.formState.isDirty)}
+                >
+                  {composeMode === 'edit' ? (
+                    <>
+                      {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Save Changes
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      Review &amp; Send
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -223,7 +290,11 @@ export function AnnouncementsTab({ cohortSlug }: { cohortSlug: string }) {
               </TableHeader>
               <TableBody>
                 {announcements.map((a) => (
-                  <TableRow key={a._id}>
+                  <TableRow
+                    key={a._id}
+                    onClick={canSend ? () => openEdit(a) : undefined}
+                    className={canSend ? 'cursor-pointer' : undefined}
+                  >
                     <TableCell className="font-medium">{a.title}</TableCell>
                     <TableCell className="max-w-xs truncate text-muted-foreground">
                       {a.body}
