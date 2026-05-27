@@ -10,6 +10,19 @@ import {
   hasPermission,
 } from './auth'
 
+/** Trim and validate announcement title/body. Throws on invalid input. */
+function normalizeAnnouncementContent(title: string, body: string) {
+  const trimmedTitle = title.trim()
+  const trimmedBody = body.trim()
+  if (trimmedTitle.length === 0 || trimmedTitle.length > 100) {
+    throw new Error('Title must be between 1 and 100 characters')
+  }
+  if (trimmedBody.length === 0 || trimmedBody.length > 10000) {
+    throw new Error('Body must be between 1 and 10,000 characters')
+  }
+  return { title: trimmedTitle, body: trimmedBody }
+}
+
 /**
  * Check if the current admin can send announcements for a cohort.
  */
@@ -36,14 +49,7 @@ export const send = mutation({
   handler: async (ctx, args) => {
     const admin = await requireAdminWithPermission(ctx, args.cohortId, 'send_announcements')
 
-    const title = args.title.trim()
-    const body = args.body.trim()
-    if (title.length === 0 || title.length > 100) {
-      throw new Error('Title must be between 1 and 100 characters')
-    }
-    if (body.length === 0 || body.length > 10000) {
-      throw new Error('Body must be between 1 and 10,000 characters')
-    }
+    const { title, body } = normalizeAnnouncementContent(args.title, args.body)
 
     const cohort = await ctx.db.get(args.cohortId)
     if (!cohort) throw new Error('Cohort not found')
@@ -81,6 +87,28 @@ export const send = mutation({
     })
 
     return announcementId
+  },
+})
+
+/**
+ * Update an existing announcement's title and body.
+ * Does not resend SMS — the SMS links to the announcement, which now reflects the edits.
+ */
+export const update = mutation({
+  args: {
+    announcementId: v.id('announcements'),
+    title: v.string(),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.announcementId)
+    if (!existing) throw new Error('Announcement not found')
+
+    await requireAdminWithPermission(ctx, existing.cohortId, 'send_announcements')
+
+    const { title, body } = normalizeAnnouncementContent(args.title, args.body)
+
+    await ctx.db.patch(args.announcementId, { title, body })
   },
 })
 

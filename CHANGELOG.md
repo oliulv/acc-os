@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.4.0] - 2026-05-27
+
+### Added
+
+- Admins can now edit announcements after sending them. Click any row in the Comms → Announcements history to open the same modal used for composing, pre-filled with the title and message. Save Changes updates what founders see on their dashboard. No SMS is resent (the SMS only links to the announcement, which now reflects the edit). The button stays disabled until the form actually changes, so reopening a row to read it doesn't trigger a write.
+
 ## [0.3.3.2] - 2026-05-21
 
 ### Fixed
