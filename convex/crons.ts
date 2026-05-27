@@ -3,11 +3,12 @@ import { internal } from './_generated/api'
 
 const crons = cronJobs()
 
-// EU-region deployments are billed fully on-demand with a 30% surcharge, so
-// dev syncs against cloned prod data were dominating the bill. On dev we run
-// each sync once a day as a smoke test; manual invocation covers anything else.
-const isProd =
-  process.env.CONVEX_CLOUD_URL === 'https://hallowed-chameleon-369.eu-west-1.convex.cloud'
+// Dev syncs against cloned prod data were dominating the bill, so dev runs
+// each sync once a day as a smoke test; prod runs the full high-frequency
+// cadence. IS_PRODUCTION_DEPLOYMENT is set explicitly via `convex env set` on
+// the prod deployment only, so this check survives a region/deployment swap
+// (the previous URL hard-coding silently broke the moment prod moved regions).
+const isProd = process.env.IS_PRODUCTION_DEPLOYMENT === 'true'
 
 // ── Data sync crons (separate per source for failure isolation) ────────
 
