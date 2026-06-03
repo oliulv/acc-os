@@ -1,6 +1,6 @@
 {
   "name": "accelerateme-internal-tool",
-  "version": "0.3.4.0",
+  "version": "0.3.5.0",
   "private": true,
   "portless": "acc-os",
   "scripts": {
