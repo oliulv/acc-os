@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.5.0] - 2026-06-03
+
+### Changed
+
+- Invoice submissions now stay as individual invoices going forward. The backend no longer schedules or generates automatic combined batch invoices, and the admin/founder UI no longer shows pending batch timers or manual "Batch now" controls.
+- Historical batch invoices remain visible in the invoice ledger. Legacy generated batch invoices still show their component invoice details and still include original invoice files when sent to Xero, while absorbed component invoices stay hidden from the main ledger as before.
+
 ## [0.3.4.0] - 2026-05-27
 
 ### Added

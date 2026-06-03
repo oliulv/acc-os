@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -68,8 +68,6 @@ import {
   GripVertical,
   FileText,
   Landmark,
-  Zap,
-  Loader2,
   PlusCircle,
   MinusCircle,
 } from 'lucide-react'
@@ -235,15 +233,10 @@ export default function StartupDetailPage() {
     api.bankDetails.getByStartupId,
     startup ? { startupId: startup._id } : 'skip'
   )
-  const pendingBatch = useQuery(
-    api.invoiceBatching.getPendingBatch,
-    startup ? { startupId: startup._id } : 'skip'
-  )
   const fundingSummary = useQuery(
     api.funding.summaryForAdminStartup,
     startup ? { startupId: startup._id } : 'skip'
   )
-  const triggerBatchNow = useMutation(api.invoiceBatching.triggerBatchNow)
   const allocateTopUp = useMutation(api.funding.allocateTopUp)
   const deductAvailableFunding = useMutation(api.funding.deductAvailableFunding)
 
@@ -252,15 +245,6 @@ export default function StartupDetailPage() {
   const removeFounder = useMutation(api.invitations.removeFounder)
   const removeTeamMember = useMutation(api.invitations.removeTeamMember)
   const reorderMilestones = useMutation(api.milestones.reorder)
-
-  const [isBatchingNow, setIsBatchingNow] = useState(false)
-
-  // Clear batching state when a new batched invoice appears
-  useEffect(() => {
-    if (!isBatchingNow || !invoicesData) return
-    const hasBatched = invoicesData.some((i) => i.isBatched && i.status === 'submitted')
-    if (hasBatched) setIsBatchingNow(false)
-  }, [isBatchingNow, invoicesData])
 
   const [showBankDetailsDialog, setShowBankDetailsDialog] = useState(false)
   const [showInviteDialog, setShowInviteDialog] = useState(false)
@@ -970,55 +954,6 @@ export default function StartupDetailPage() {
             </div>
           </CardHeader>
           <CardContent className="flex-1 space-y-3">
-            {(isBatchingNow || (pendingBatch && pendingBatch.scheduledTime)) && startup && (
-              <div className="flex items-center justify-between gap-2 border border-amber-200 bg-amber-50/50 rounded px-3 py-2">
-                <div className="flex items-center gap-2 text-sm text-amber-900">
-                  {isBatchingNow ? (
-                    <Loader2 className="h-3.5 w-3.5 text-amber-600 animate-spin shrink-0" />
-                  ) : (
-                    <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                  )}
-                  <span>
-                    {isBatchingNow ? (
-                      'Combining invoices...'
-                    ) : (
-                      <>
-                        Batch in{' '}
-                        <span className="font-mono">
-                          {Math.max(
-                            0,
-                            Math.ceil(((pendingBatch?.scheduledTime ?? 0) - Date.now()) / 60000)
-                          )}
-                          m
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </div>
-                {!isBatchingNow && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={async () => {
-                      setIsBatchingNow(true)
-                      try {
-                        await triggerBatchNow({ startupId: startup._id })
-                        toast.success('Batching in progress...')
-                      } catch (error) {
-                        setIsBatchingNow(false)
-                        toast.error(
-                          error instanceof Error ? error.message : 'Failed to trigger batch'
-                        )
-                      }
-                    }}
-                  >
-                    <Zap className="mr-1 h-3 w-3" />
-                    Batch now
-                  </Button>
-                )}
-              </div>
-            )}
             {invoicesData && invoicesData.filter((i) => i.status !== 'rejected').length > 0 ? (
               <div className="max-h-[13rem] overflow-y-auto">
                 <div className="space-y-2">

@@ -14,7 +14,7 @@ export function isValidTransition(from: string, to: string): boolean {
 
 /**
  * Compute the next sequential invoice number from existing invoices.
- * Rejected and batched-into invoices are excluded from the count.
+ * Rejected and legacy batched-into invoices are excluded from the count.
  */
 export function computeNextInvoiceNumber(
   existingInvoices: Array<{ fileName: string; status: string; batchedIntoId?: string | null }>

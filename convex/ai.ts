@@ -1,4 +1,4 @@
-import { action, internalAction } from './functions'
+import { action } from './functions'
 import { v } from 'convex/values'
 import type { Id } from './_generated/dataModel'
 import type { ActionCtx } from './_generated/server'
@@ -201,92 +201,6 @@ IMPORTANT:
       amountMismatch: Math.abs(totalAmountGbp - receiptTotalGbp) > 0.01,
       currencyConverted: hasNonGbp && unconvertedCurrencies.length === 0,
       unconvertedCurrencies,
-    }
-  },
-})
-
-/**
- * Extract company/sender metadata from an invoice PDF for batch PDF generation.
- */
-export const extractInvoiceMetadata = internalAction({
-  args: { invoiceStorageId: v.id('_storage') },
-  handler: async (ctx, args) => {
-    const apiKey = process.env.OPENROUTER_API_KEY
-    if (!apiKey) return null
-
-    let base64: string
-    try {
-      base64 = await fetchStorageAsBase64(ctx, args.invoiceStorageId)
-    } catch {
-      return null
-    }
-
-    const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Extract the company/sender details from this invoice PDF. Return JSON only:
-{
-  "companyName": "...",
-  "addressLines": ["line1", "line2", ...],
-  "email": "..." or null,
-  "phone": "..." or null,
-  "bankDetails": {
-    "accountHolder": "...",
-    "sortCode": "...",
-    "accountNumber": "...",
-    "bankName": "..." or null
-  } or null,
-  "billTo": { "name": "...", "addressLines": ["..."] } or null
-}`,
-              },
-              {
-                type: 'image_url',
-                image_url: { url: `data:application/pdf;base64,${base64}` },
-              },
-            ],
-          },
-        ],
-        temperature: 0,
-      }),
-    })
-
-    if (!aiResponse.ok) return null
-
-    const data = await aiResponse.json()
-    const rawContent = data.choices?.[0]?.message?.content ?? ''
-
-    let jsonStr = rawContent.trim()
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
-    }
-
-    try {
-      return JSON.parse(jsonStr) as {
-        companyName: string
-        addressLines: string[]
-        email: string | null
-        phone: string | null
-        bankDetails: {
-          accountHolder: string
-          sortCode: string
-          accountNumber: string
-          bankName: string | null
-        } | null
-        billTo: { name: string; addressLines: string[] } | null
-      }
-    } catch {
-      return null
     }
   },
 })

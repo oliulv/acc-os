@@ -278,18 +278,20 @@ export default defineSchema({
     approvedAt: v.optional(v.string()),
     paidAt: v.optional(v.string()),
     adminComment: v.optional(v.string()),
-    // Batching fields
+    // Legacy batching fields retained so old invoice documents remain schema-valid.
+    // Runtime batching has been removed and new invoices no longer write these.
     batchedIntoId: v.optional(v.id('invoices')),
     isBatched: v.optional(v.boolean()),
     batchedFromIds: v.optional(v.array(v.id('invoices'))),
-    // Original invoice files from component invoices (separate from receipts)
     originalInvoiceStorageIds: v.optional(v.array(v.id('_storage'))),
     originalInvoiceFileNames: v.optional(v.array(v.string())),
   })
     .index('by_startupId', ['startupId'])
     .index('by_status', ['status']),
 
-  // ── Pending Batches (debounce scheduling) ────────────────────────
+  // ── Legacy Pending Batches ────────────────────────────────────────
+  // Retained only so already-scheduled legacy batch jobs can drain cleanly.
+  // No runtime path writes this table anymore.
   pendingBatches: defineTable({
     startupId: v.id('startups'),
     scheduledFnId: v.id('_scheduled_functions'),

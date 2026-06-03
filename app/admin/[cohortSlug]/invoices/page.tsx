@@ -49,12 +49,9 @@ import {
   ChevronsUpDown,
   DollarSign,
   Loader2,
-  Clock,
-  Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BatchCountdown } from '@/components/batch-countdown'
 import {
   getInvoiceStatusLabel,
   getInvoiceStatusVariant,
@@ -79,9 +76,6 @@ export default function AdminInvoicesPage() {
   const [showApproved, setShowApproved] = useState(searchParams.get('showApproved') === '1')
   const [showRejected, setShowRejected] = useState(false)
 
-  // Batch now loading state — tracks startups being batched
-  const [batchingStartupIds, setBatchingStartupIds] = useState<Set<string>>(new Set())
-
   // Inline mark paid state
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
   const [selectedApprovedIds, setSelectedApprovedIds] = useState<Set<string>>(new Set())
@@ -89,15 +83,10 @@ export default function AdminInvoicesPage() {
 
   const updateStatus = useMutation(api.invoices.updateStatus)
   const batchMarkPaid = useMutation(api.invoices.batchMarkPaid)
-  const triggerBatchNow = useMutation(api.invoiceBatching.triggerBatchNow)
 
   const cohort = useQuery(api.cohorts.getBySlug, { slug: cohortSlug })
   const startups = useQuery(api.startups.list, cohort ? { cohortId: cohort._id } : 'skip')
   const allInvoices = useQuery(api.invoices.listForAdmin, {})
-  const pendingBatches = useQuery(
-    api.invoiceBatching.listPendingBatches,
-    cohort ? { cohortId: cohort._id } : 'skip'
-  )
 
   // Build a startup ID set and name lookup for this cohort
   const startupIdSet = useMemo(() => {
@@ -193,22 +182,6 @@ export default function AdminInvoicesPage() {
     prevApprovedCount.current = approvedCount
   }, [groupedInvoices])
 
-  // Clear batching state when batch completes (new batched invoice appears)
-  useEffect(() => {
-    if (batchingStartupIds.size === 0 || !cohortInvoices) return
-    setBatchingStartupIds((prev) => {
-      const next = new Set(prev)
-      for (const startupId of prev) {
-        // Check if a batched invoice now exists for this startup that wasn't there before
-        const hasBatched = cohortInvoices.some(
-          (i) => i.startupId === startupId && i.isBatched && i.status === 'submitted'
-        )
-        if (hasBatched) next.delete(startupId)
-      }
-      return next.size === prev.size ? prev : next
-    })
-  }, [cohortInvoices, batchingStartupIds])
-
   // Derive valid selected IDs — only keep IDs that are still in the approved list
   const validSelectedApprovedIds = useMemo(() => {
     if (!groupedInvoices) return selectedApprovedIds
@@ -278,21 +251,6 @@ export default function AdminInvoicesPage() {
       toast.error(error instanceof Error ? error.message : 'Failed to mark as paid')
     } finally {
       setMarkingPaidId(null)
-    }
-  }
-
-  async function handleBatchNow(startupId: Id<'startups'>) {
-    setBatchingStartupIds((prev) => new Set(prev).add(startupId))
-    try {
-      await triggerBatchNow({ startupId })
-      toast.success('Batching in progress...')
-    } catch (error) {
-      setBatchingStartupIds((prev) => {
-        const next = new Set(prev)
-        next.delete(startupId)
-        return next
-      })
-      toast.error(error instanceof Error ? error.message : 'Failed to trigger batch')
     }
   }
 
@@ -668,64 +626,6 @@ export default function AdminInvoicesPage() {
         groupedInvoices.approved.length > 0 ||
         groupedInvoices.rejected.length > 0) ? (
         <div className="space-y-6">
-          {/* Pending Batch Timers + In-Progress Batches */}
-          {((pendingBatches && pendingBatches.length > 0) || batchingStartupIds.size > 0) && (
-            <Card className="border-amber-200 bg-amber-50/50">
-              <CardContent className="pt-4 pb-4 space-y-2">
-                {/* In-progress batches (triggered but not yet complete) */}
-                {Array.from(batchingStartupIds)
-                  .filter((sid) => !pendingBatches?.some((b) => b.startupId === sid))
-                  .map((startupId) => (
-                    <div key={startupId} className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 text-amber-600 animate-spin shrink-0" />
-                        <p className="text-sm text-amber-900">
-                          <span className="font-medium">
-                            {startupNameMap.get(startupId) ?? 'Startup'}
-                          </span>
-                          {' \u2014 combining invoices...'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                {/* Pending batches (waiting on timer) */}
-                {pendingBatches?.map((batch) => (
-                  <div key={batch.startupId} className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      {batchingStartupIds.has(batch.startupId) ? (
-                        <Loader2 className="h-4 w-4 text-amber-600 animate-spin shrink-0" />
-                      ) : (
-                        <Clock className="h-4 w-4 text-amber-600 shrink-0" />
-                      )}
-                      <p className="text-sm text-amber-900">
-                        <span className="font-medium">{batch.startupName}</span>
-                        {batchingStartupIds.has(batch.startupId)
-                          ? ' \u2014 combining invoices...'
-                          : ' \u2014 batch in '}
-                        {!batchingStartupIds.has(batch.startupId) && (
-                          <BatchCountdown scheduledTime={batch.scheduledTime} />
-                        )}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={batchingStartupIds.has(batch.startupId)}
-                      onClick={() => handleBatchNow(batch.startupId as Id<'startups'>)}
-                    >
-                      {batchingStartupIds.has(batch.startupId) ? (
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Zap className="mr-1.5 h-3.5 w-3.5" />
-                      )}
-                      {batchingStartupIds.has(batch.startupId) ? 'Batching...' : 'Batch now'}
-                    </Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
           {/* Pending Review */}
           {renderCollapsibleSection(
             'Pending Review',

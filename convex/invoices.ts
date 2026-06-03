@@ -149,7 +149,7 @@ export const create = mutation({
       throw new ConvexError(nameValidation.error)
     }
 
-    // Enforce sequential invoice numbering (rejected and batched-into invoices don't count)
+    // Enforce sequential invoice numbering (rejected and legacy batched-into invoices don't count).
     const existingInvoices = await ctx.db
       .query('invoices')
       .withIndex('by_startupId', (q) => q.eq('startupId', startupId))
@@ -246,9 +246,6 @@ export const create = mutation({
       status: 'submitted',
     })
 
-    // Schedule auto-batching (5-min debounce)
-    await ctx.scheduler.runAfter(0, internal.invoiceBatching.scheduleBatching, { startupId })
-
     // Notify admins about new invoice submission
     await ctx.scheduler.runAfter(0, internal.notifications.notifyInvoiceSubmitted, {
       cohortId: startup.cohortId,
@@ -307,7 +304,7 @@ export const listForFounder = query({
       allInvoices.push(...invoices)
     }
 
-    // Filter out invoices that have been absorbed into a batch
+    // Preserve the legacy ledger view: show generated batch invoices, hide their components.
     const visibleInvoices = allInvoices.filter((i) => !i.batchedIntoId)
 
     // Sort newest first
@@ -372,7 +369,7 @@ export const listForAdmin = query({
       invoices = invoices.filter((i) => i.status === args.status)
     }
 
-    // Filter out invoices absorbed into a batch
+    // Preserve the legacy ledger view: show generated batch invoices, hide their components.
     invoices = invoices.filter((i) => !i.batchedIntoId)
 
     invoices.sort((a, b) => b._creationTime - a._creationTime)
@@ -518,11 +515,6 @@ export const updateStatus = mutation({
     // Send to Xero on approval
     if (args.status === 'approved') {
       await ctx.scheduler.runAfter(0, internal.invoices.sendToXero, { invoiceId: args.id })
-      // Cancel pending batch if this approval empties the queue
-      await ctx.scheduler.runAfter(0, internal.invoiceBatching.cancelBatchIfEmpty, {
-        startupId: invoice.startupId,
-        excludeInvoiceId: args.id,
-      })
     }
 
     // Notify founder about invoice status change
@@ -641,15 +633,14 @@ export const sendToXero = internalAction({
       { label: `send invoice ${startupName} #${invoiceNum} to Xero` }
     )
 
-    // Collect receipt storage IDs (handle both old single and new array format)
-    // For batch invoices, merge original invoice files + receipts for Xero
+    // Collect receipt storage IDs (handle both old single and new array format).
+    // For legacy batch invoices, merge original invoice files + receipts for Xero.
     const originalIds: string[] = invoice.originalInvoiceStorageIds ?? []
     const originalNames: string[] = invoice.originalInvoiceFileNames ?? []
 
-    // Rename original invoices so it's clear which batch they belong to in Xero
     const renamedOriginalNames = originalNames.map((name) => {
       const origMatch = name.match(/Invoice (\d+)\.pdf$/i)
-      if (!origMatch) return name // preserve original name if pattern doesn't match
+      if (!origMatch) return name
       return `${startupName} Batch ${invoiceNum} - Original Invoice ${origMatch[1]}.pdf`
     })
 
@@ -691,7 +682,7 @@ export const sendToXero = internalAction({
 })
 
 /**
- * Get component invoices for a batch invoice. Silently drops any invoice
+ * Get component invoices for a legacy batch invoice. Silently drops any invoice
  * the caller cannot access so a malformed ID list doesn't break the view
  * for legitimate callers.
  */
@@ -699,16 +690,19 @@ export const getComponentInvoices = query({
   args: { ids: v.array(v.id('invoices')) },
   handler: async (ctx, args) => {
     const user = await requireAuth(ctx)
-    const isAdmin = user.role === 'admin' || user.role === 'super_admin'
-    const startupIds = isAdmin
-      ? new Set<string>()
-      : new Set<string>(await getFounderStartupIds(ctx, user._id))
+    const isSuperAdmin = user.role === 'super_admin'
 
     const results = []
     for (const id of args.ids) {
       const inv = await ctx.db.get(id)
       if (!inv) continue
-      if (!isAdmin && !startupIds.has(inv.startupId)) continue
+      if (!isSuperAdmin) {
+        try {
+          await requireStartupAccess(ctx, inv.startupId)
+        } catch {
+          continue
+        }
+      }
       results.push({
         _id: inv._id,
         vendorName: inv.vendorName,
