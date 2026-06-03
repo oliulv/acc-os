@@ -4,6 +4,9 @@ import { v } from 'convex/values'
 import type { MutationCtx } from './functions'
 import type { Id } from './_generated/dataModel'
 
+/**
+ * Remove every pending legacy batch row for a startup.
+ */
 async function deletePendingBatchRows(ctx: MutationCtx, startupId: Id<'startups'>) {
   const existing = await ctx.db
     .query('pendingBatches')
@@ -30,6 +33,9 @@ export const executeBatch = internalAction({
   },
 })
 
+/**
+ * No-op replacement for the old batch scheduler.
+ */
 export const scheduleBatching = internalMutation({
   args: { startupId: v.id('startups') },
   handler: async (ctx, args) => {
@@ -37,6 +43,9 @@ export const scheduleBatching = internalMutation({
   },
 })
 
+/**
+ * No-op replacement for the old approval-time batch cancellation path.
+ */
 export const cancelBatchIfEmpty = internalMutation({
   args: {
     startupId: v.id('startups'),
@@ -47,6 +56,9 @@ export const cancelBatchIfEmpty = internalMutation({
   },
 })
 
+/**
+ * Delete stale pending batch rows left by pre-deprecation scheduled jobs.
+ */
 export const cleanupPendingBatch = internalMutation({
   args: { startupId: v.id('startups') },
   handler: async (ctx, args) => {

@@ -690,16 +690,19 @@ export const getComponentInvoices = query({
   args: { ids: v.array(v.id('invoices')) },
   handler: async (ctx, args) => {
     const user = await requireAuth(ctx)
-    const isAdmin = user.role === 'admin' || user.role === 'super_admin'
-    const startupIds = isAdmin
-      ? new Set<string>()
-      : new Set<string>(await getFounderStartupIds(ctx, user._id))
+    const isSuperAdmin = user.role === 'super_admin'
 
     const results = []
     for (const id of args.ids) {
       const inv = await ctx.db.get(id)
       if (!inv) continue
-      if (!isAdmin && !startupIds.has(inv.startupId)) continue
+      if (!isSuperAdmin) {
+        try {
+          await requireStartupAccess(ctx, inv.startupId)
+        } catch {
+          continue
+        }
+      }
       results.push({
         _id: inv._id,
         vendorName: inv.vendorName,
