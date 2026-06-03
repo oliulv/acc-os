@@ -1,12 +1,11 @@
 'use client'
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useMutation, useQuery } from 'convex/react'
+import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import Link from 'next/link'
-import { useState, useCallback, useEffect, useMemo } from 'react'
-import { BatchCountdown } from '@/components/batch-countdown'
+import { useState, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -37,8 +36,6 @@ import {
   User,
   TrendingDown,
   Eye,
-  Clock,
-  Zap,
 } from 'lucide-react'
 import { BankDetailsDialog } from '@/components/bank-details-dialog'
 import { InvoiceActions } from './InvoiceActions'
@@ -47,7 +44,6 @@ import {
   getInvoiceStatusVariant,
   type InvoiceStatus,
 } from '@/lib/invoice-status'
-import { toast } from 'sonner'
 
 function ReceiptLink({
   invoiceId,
@@ -99,7 +95,6 @@ export default function InvoiceDetailPage() {
 
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
   const [pdfViewerTitle, setPdfViewerTitle] = useState('')
-  const [batchTriggered, setBatchTriggered] = useState(false)
   const [showBankDetails, setShowBankDetails] = useState(false)
 
   const cohort = useQuery(api.cohorts.getBySlug, { slug: cohortSlug })
@@ -140,15 +135,6 @@ export default function InvoiceDetailPage() {
     invoice?.isBatched && invoice?.batchedFromIds ? { ids: invoice.batchedFromIds } : 'skip'
   )
 
-  // Pending batch info
-  const pendingBatch = useQuery(
-    api.invoiceBatching.getPendingBatch,
-    invoice?.startupId && invoice?.status === 'submitted'
-      ? { startupId: invoice.startupId }
-      : 'skip'
-  )
-  const triggerBatchNow = useMutation(api.invoiceBatching.triggerBatchNow)
-
   // Auto-navigate: find the next submitted invoice (same startup first)
   const nextSubmittedId = useQuery(
     api.invoices.getNextSubmitted,
@@ -181,25 +167,6 @@ export default function InvoiceDetailPage() {
   function openPdfViewer(url: string, title: string) {
     setPdfViewerUrl(url)
     setPdfViewerTitle(title)
-  }
-
-  // Auto-redirect to batch invoice after triggering "Batch now"
-  useEffect(() => {
-    if (batchTriggered && invoice?.batchedIntoId) {
-      router.push(`/admin/${cohortSlug}/invoices/${invoice.batchedIntoId}`)
-    }
-  }, [batchTriggered, invoice?.batchedIntoId, cohortSlug, router])
-
-  async function handleTriggerBatchNow() {
-    if (!invoice?.startupId) return
-    try {
-      setBatchTriggered(true)
-      await triggerBatchNow({ startupId: invoice.startupId })
-      toast.success('Batch triggered — redirecting...')
-    } catch (error) {
-      setBatchTriggered(false)
-      toast.error(error instanceof Error ? error.message : 'Failed to trigger batch')
-    }
   }
 
   // Loading state
@@ -252,7 +219,7 @@ export default function InvoiceDetailPage() {
   const canApprove = invoice.status === 'submitted' || invoice.status === 'under_review'
   const canMarkPaid = invoice.status === 'approved'
 
-  // If this invoice has been batched into another, show redirect
+  // If this legacy invoice has been batched into another, show redirect.
   if (invoice.batchedIntoId) {
     return (
       <div className="space-y-6">
@@ -267,11 +234,11 @@ export default function InvoiceDetailPage() {
         <Card className="border-blue-200 bg-blue-50/50">
           <CardContent className="pt-6">
             <p className="text-sm text-blue-900">
-              This invoice has been combined into a batch invoice for easier processing.
+              This historical invoice was included in a legacy batch invoice.
             </p>
             <Link href={`/admin/${cohortSlug}/invoices/${invoice.batchedIntoId}`}>
               <Button variant="link" className="px-0 mt-2">
-                View batch invoice &rarr;
+                View legacy batch invoice &rarr;
               </Button>
             </Link>
           </CardContent>
@@ -313,33 +280,6 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
       </div>
-
-      {/* Pending Batch Timer */}
-      {pendingBatch && pendingBatch.scheduledTime && invoice.status === 'submitted' && (
-        <Card className="border-amber-200 bg-amber-50/50">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <Clock className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-amber-900">
-                    Batch scheduled &mdash; invoices for {startup?.name ?? 'this startup'} will be
-                    combined in <BatchCountdown scheduledTime={pendingBatch.scheduledTime} />
-                  </p>
-                  <p className="text-xs text-amber-700 mt-0.5">
-                    The founder may still be uploading. You can still approve or reject
-                    individually.
-                  </p>
-                </div>
-              </div>
-              <Button size="sm" variant="outline" onClick={handleTriggerBatchNow}>
-                <Zap className="mr-1.5 h-3.5 w-3.5" />
-                Batch now
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-6 md:grid-cols-3">
         {/* Main Content */}

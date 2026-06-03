@@ -176,7 +176,7 @@ describe('fundingMath', () => {
     expect(paid.available).toBe(3000)
   })
 
-  it('excludes batched component invoices from committed and deployed totals', () => {
+  it('excludes legacy batched component invoices from committed and deployed totals', () => {
     const totals = computeInvoiceFundingTotals([
       { status: 'approved', amountGbp: 500, batchedIntoId: 'batch' },
       { status: 'paid', amountGbp: 750, batchedIntoId: 'batch' },

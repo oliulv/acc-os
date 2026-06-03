@@ -180,8 +180,7 @@ export default function FounderInvoiceDetailPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-blue-800 mb-3">
-                  This invoice was automatically combined from your individual submissions for
-                  easier processing.
+                  This historical invoice was created from legacy batch processing.
                 </p>
                 <div className="space-y-2">
                   {componentInvoices.map((comp) => (

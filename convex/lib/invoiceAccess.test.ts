@@ -16,7 +16,7 @@ describe('isStorageIdOnInvoice', () => {
     expect(isStorageIdOnInvoice(inv, 'r3')).toBe(true)
   })
 
-  test('matches any entry in originalInvoiceStorageIds (batched)', () => {
+  test('matches any entry in originalInvoiceStorageIds for legacy batched invoices', () => {
     const inv = { storageId: 's1', originalInvoiceStorageIds: ['o1', 'o2'] }
     expect(isStorageIdOnInvoice(inv, 'o2')).toBe(true)
   })

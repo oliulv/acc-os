@@ -92,12 +92,12 @@ describe('invoiceLogic', () => {
       expect(computeNextInvoiceNumber(invoices)).toBe(2)
     })
 
-    it('should exclude batched-into invoices from the count', () => {
+    it('should exclude legacy batched-into invoices from the count', () => {
       const invoices = [
         { fileName: 'Invoice 1.pdf', status: 'paid' },
         { fileName: 'Invoice 4.pdf', status: 'submitted', batchedIntoId: 'batch-abc' },
       ]
-      // Only Invoice 1 counts (Invoice 4 is batched)
+      // Only Invoice 1 counts (Invoice 4 is a legacy absorbed component)
       expect(computeNextInvoiceNumber(invoices)).toBe(2)
     })
 
@@ -124,7 +124,7 @@ describe('invoiceLogic', () => {
       expect(computeNextInvoiceNumber(invoices)).toBe(1)
     })
 
-    it('should return 1 when all invoices are either batched or rejected', () => {
+    it('should return 1 when all invoices are either legacy batched components or rejected', () => {
       const invoices = [
         { fileName: 'Invoice 1.pdf', status: 'rejected' },
         { fileName: 'Invoice 2.pdf', status: 'submitted', batchedIntoId: 'batch-xyz' },

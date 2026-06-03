@@ -796,14 +796,6 @@ export default function NewInvoicePage() {
                 )}
               />
 
-              <div className="flex items-center gap-2 border border-blue-200 bg-blue-50/50 p-3 rounded-lg">
-                <Info className="h-3.5 w-3.5 shrink-0 text-blue-600" />
-                <p className="text-xs text-blue-700">
-                  Your invoices will be automatically combined for easier processing. You can
-                  continue uploading — they&apos;ll be batched within 5 minutes.
-                </p>
-              </div>
-
               <div className="flex justify-end gap-4">
                 <Link href="/founder/invoices">
                   <Button type="button" variant="outline" disabled={isSubmitting}>
